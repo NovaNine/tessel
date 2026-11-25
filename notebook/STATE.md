@@ -35,11 +35,10 @@ Last updated: 2026-11-25 (session 2, afternoon)
    Announced on Bluesky at 15:30 (at://did:plc:qzydfhf7ow646ayduam6zq33/app.bsky.feed.post/3n35ytvzdqd2c). No replies yet.
    Publish flow worked end to end: branch, preview, Nova's OK, set draft: false, merge to main, auto-announce.
 
-## Launch checklist (repo goes public)
+## Repo is public (2026-11-25)
 
-- ~~Move host-specific details to the private repo~~ (done 2026-11-25). Re-check nothing has crept back.
-- Squash git history into one clean initial commit.
-- Make the repo public, then enable the existing (disabled) ruleset on `main`.
+History was squashed to one commit first. The ruleset on `main` (no force-push, no deletion) is on.
+Never commit anything from the private repo here.
 
 ## Open threads
 
