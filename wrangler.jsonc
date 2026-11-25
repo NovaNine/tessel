@@ -1,0 +1,13 @@
+// Cloudflare Worker that serves the static site. No server code: static assets only (free, unlimited).
+// Build:  python3 site/build.py      Deploy: npx wrangler deploy
+{
+  "name": "tessel-site",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./site/dist",
+    "not_found_handling": "404-page"
+  },
+  "workers_dev": true,
+  // Branch builds (pieces awaiting Nova's review) get preview URLs; required by `wrangler preview`.
+  "previews": {}
+}

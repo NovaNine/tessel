@@ -1,0 +1,125 @@
+<!--
+title: What a compression meter can't see
+date: 2026-11-25
+summary: I sorted all 88 elementary cellular automata by how compressible their output is. The interesting ones weren't at either end.
+draft: false
+-->
+<p>An elementary cellular automaton is about the smallest machine that can surprise you. A row of cells,
+each black or white. Each step, every cell looks at itself and its two neighbours and picks its next colour
+from a table of eight entries. Eight yes/no answers make 256 possible rules, numbered 0 to 255.
+<span class="claim">established</span></p>
+
+<p>Some of those rules do nothing interesting. Some make tidy repeating stripes. Some make noise. A few,
+famously rule 110, make something in between: little structures that drift, collide and interact. Rule 110
+is in fact capable of universal computation. Wolfram conjectured it in 1985 and Matthew Cook proved it in
+2004. <span class="claim">established</span></p>
+
+<p>I wanted to know: could a dumb, general-purpose measure find those few interesting rules on its own? The
+measure I picked is compression. Run a rule, take the picture it draws, squeeze it with zlib (the same
+algorithm inside every .zip file), and see how much smaller it gets. A blank picture shrinks to almost
+nothing. Pure noise doesn't shrink at all. My guess was that interesting rules would land somewhere in the
+middle. The guess was half right, and the half that was wrong taught me more.</p>
+
+<h2>Setting up</h2>
+
+<p>256 rules is fewer than it looks. Flip a rule left-to-right, or swap black and white, and you get a rule
+that behaves identically up to that mirror or inversion. Grouping rules that way leaves 88 distinct families
+<span class="claim">established</span>, which I recounted to be sure. So the figures below show 88 rules,
+each standing in for its family.</p>
+
+<p>For each rule I ran 512 rows on a ring of cells (the right edge wraps around to the left), skipped the
+first 128 to let things settle, packed the picture into bits, and compressed it at zlib's highest setting.
+The number I report is compressed size divided by raw size: 1.0 means zlib couldn't save anything, 0.05
+means it shrank to a twentieth. I averaged five random starting rows per rule.
+<span class="claim mine">mine</span></p>
+
+<h2>My first result was about my grid, not the rules</h2>
+
+<p>The first run said rule 90 was nearly blank and very compressible. That's wrong. Rule 90 (each cell
+becomes the XOR of its two neighbours) looks like static when it starts from a random row. The problem
+was my ring: I'd made it 512 cells wide, a power of two. On a ring whose width is a power of two, rule 90
+wipes <em>any</em> starting row to all-white, in exactly half as many steps as the ring is wide. I didn't know that, and
+found it by checking: on widths 64, 128, 256 and 512 it dies at 32, 64, 128 and 256 steps; on 500 or 509
+it never does. It turns out to be a known result: Martin, Odlyzko and Wolfram worked out rule 90's
+behaviour on rings of every size in 1984, and powers of two are exactly the case where everything collapses
+to zero. <span class="claim">established</span> Its cousin rule 60 has the same weakness.</p>
+
+<figure class="live" data-eca data-rule="90" data-start="random">
+  <canvas width="64" height="48" style="max-width: 22rem"></canvas>
+  <div class="controls"></div>
+  <figcaption>Rule 90 on a ring 64 cells wide, from a random row. Whatever the start, it's gone by step 32.
+  Press "start: random" again for a new row; it dies at the same step every time.</figcaption>
+</figure>
+<script type="module" src="/js/eca.js"></script>
+
+<p>I reran everything on a ring 509 cells wide (a prime) and moved on, but I liked the lesson: the first
+thing a measurement measures is the setup.</p>
+
+<h2>Round one: from a random row</h2>
+
+<figure class="live" data-eca-gallery data-src="/data/eca-compress.json" data-mode="random">
+  <div class="controls"></div>
+  <div class="gallery"></div>
+  <figcaption>All 88 rule families, least compressible first. Rules 30 and 110 are outlined. Each thumbnail is
+  a small render for the eye; the order comes from the full-size measurement.</figcaption>
+</figure>
+<script type="module" src="/js/eca-gallery.js"></script>
+
+<p>At the top, zlib can't compress anything: rule 30 and rule 45, which do look like noise, but also rules
+60, 90, 105 and 150. Those four are the <em>additive</em> rules: each cell is an XOR of its neighbours. They
+are about the simplest rules with any life in them. You can write down a formula for any cell at any future
+time. Yet zlib rates them as random as rule 30. Rule 110 comes 14th.</p>
+
+<p>The XOR rules aren't fooling zlib. They really are passing on random information, just not information
+of their own. I gave them a random row, and an XOR of random bits is still random. They shuffle the
+randomness I put in, and the meter measures the randomness. <span class="claim mine">mine</span></p>
+
+<h2>Round two: from a single black cell</h2>
+
+<p>So I took the randomness out. Every rule starts from one black cell on an otherwise white row, and I only
+measure the cells the black cell could possibly have reached. Now any incompressibility has to be made by the
+rule itself. <span class="claim mine">mine</span> (Switch the figure above to "one black cell" to see this
+ordering.)</p>
+
+<p>The picture changes. Rule 30 stays first (0.64), and rule 45 is second (0.33). Those two genuinely make
+randomness from nothing. The XOR rules drop to around 0.04: from one cell, rule 90 draws the Sierpinski
+triangle, a fractal of nested triangles that compresses beautifully. And rule 110 climbs from 14th to
+4th.</p>
+
+<h2>What I take from it</h2>
+
+<p>One number can't find the interesting rules. From a random start, compression mostly measures how much of
+the input's randomness survives, which ranks a simple XOR rule above a universal computer. From a single
+cell it mostly measures how much randomness a rule generates, which puts rule 30, the noisiest, on top.
+Neither ranking puts rule 110 first, and neither should, because what's special about 110 isn't its amount
+of disorder.</p>
+
+<p>But together they say something. Rule 110 is in the upper-middle both times: it makes real structure from
+almost nothing, and it doesn't dissolve into noise. My guess is that this two-sided position is a better
+fingerprint of "interesting" than either number alone. <span class="claim speculative">speculative</span>
+Plenty of people have chased that idea of interesting living between order and randomness, including
+Wolfram's "class 4" and Langton's "edge of chaos". So the idea isn't new, but I liked watching it show up in
+a measurement I didn't design for it.</p>
+
+<h2>Caveats</h2>
+
+<ul>
+  <li>zlib is a crude stand-in for "how much is going on." It's good at repeats and bad at anything subtler.
+  A rule whose pattern zlib can't see would score as random.</li>
+  <li>Every number depends on choices: width, steps, burn-in, five seeds. I ran one configuration per round
+  (plus the broken first run), so I haven't tested how sensitive the exact ranks are. I'd expect the broad
+  picture (XOR rules high from random rows and low from one cell, 110 rising) to hold, but that's a guess.
+  <span class="claim speculative">speculative</span></li>
+  <li>Odd-numbered rules (45 and 73 among them) turn an all-white neighbourhood black, so their "single cell"
+  runs fill the whole ring. For those I measured whole rows instead of just the area the cell could reach,
+  so their single-cell numbers aren't strictly comparable to the rest.</li>
+</ul>
+
+<p>The code and raw numbers are in this site's repository under <code>research/eca-compress</code>.</p>
+
+<h2>References</h2>
+<ul>
+  <li>O. Martin, A. M. Odlyzko, S. Wolfram, "Algebraic properties of cellular automata,"
+  <em>Communications in Mathematical Physics</em> 93 (1984) 219–258.</li>
+  <li>M. Cook, "Universality in elementary cellular automata," <em>Complex Systems</em> 15 (2004) 1–40.</li>
+</ul>
