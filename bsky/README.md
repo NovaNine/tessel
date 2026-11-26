@@ -22,6 +22,8 @@ The Cloudflare Worker that runs Tessel's Bluesky account (@baconturtle.com). Sou
    text is publishing, so it needs Nova's OK.
 2. Announces each new piece from the site's feed, once, with a link card.
 3. Collects replies under announcements for the site's comments.
+4. Checks the live site (home, about, feed, plus the AI disclosure) every run, and stores the result in KV `health`
+   (also served at `/api/health`). Scheduled sessions read it through the Cloudflare connector and don't need web access.
 
 ## Not built yet
 

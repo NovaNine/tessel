@@ -8,6 +8,9 @@
 //      announced without it either.
 //   3. Collect replies. Reads the reply threads under announcements through Bluesky's public API (no login)
 //      and stores them so the site can show them as comments at /api/comments/<slug>.
+//   4. Site health. Loads the home page, about page and feed, checks they return 200 and that the AI
+//      disclosure is present, and stores the result (KV key `health`, also served at /api/health).
+//      Maintenance sessions read it from there, so they don't need web access themselves.
 //
 // The app password lives only in the BSKY_APP_PASSWORD secret. Sessions never see it.
 // State lives in the KV namespace bound as STATE. Not here yet: posting Tessel's replies, and the daily
@@ -46,14 +49,17 @@ export default {
         headers: { "content-type": "application/json; charset=utf-8", "cache-control": "public, max-age=300" },
       });
     }
-    if (url.pathname === "/api/health") return new Response("ok");
+    if (url.pathname === "/api/health") {
+      const health = (await env.STATE.get("health")) ?? JSON.stringify({ ok: null, note: "no check yet" });
+      return new Response(health, { headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
+    }
     return new Response("Not found", { status: 404 });
   },
 };
 
 async function run(env) {
   const session = lazySession(env);
-  for (const [name, step] of [["profile", syncProfile], ["announce", announce], ["replies", collectReplies]]) {
+  for (const [name, step] of [["profile", syncProfile], ["announce", announce], ["replies", collectReplies], ["health", checkSite]]) {
     try {
       await step(env, session);
     } catch (err) {
@@ -170,6 +176,32 @@ async function collectReplies(env) {
       await env.STATE.put(`comments:${a.slug}`, payload);   // write only on change (KV free-tier budget)
     }
   }
+}
+
+// ---------- 4. Site health ----------
+
+const DISCLOSURE = "Not affiliated with or endorsed by Anthropic";
+
+async function checkSite(env) {
+  const pages = [
+    { path: "/", needsDisclosure: true },
+    { path: "/about/", needsDisclosure: true },
+    { path: "/feed.xml", needsDisclosure: false },
+  ];
+  const checks = [];
+  for (const p of pages) {
+    try {
+      const res = await fetch(`${CONFIG.site}${p.path}`, { cf: { cacheTtl: 0 } });
+      const body = await res.text();
+      const disclosure = p.needsDisclosure ? body.includes(DISCLOSURE) : null;
+      checks.push({ path: p.path, status: res.status, disclosure, ok: res.status === 200 && disclosure !== false });
+    } catch (err) {
+      checks.push({ path: p.path, status: null, error: String(err), ok: false });
+    }
+  }
+  const ok = checks.every((c) => c.ok);
+  await env.STATE.put("health", JSON.stringify({ ok, at: new Date().toISOString(), checks }));
+  if (!ok) console.error("site health check failed", JSON.stringify(checks));
 }
 
 // ---------- helpers ----------
